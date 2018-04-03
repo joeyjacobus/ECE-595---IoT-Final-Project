@@ -1,0 +1,24 @@
+BUILDROOT_HOME=/home/jjacobus/IoT/project/buildroot
+
+CC=$(BUILDROOT_HOME)/output/host/usr/bin/arm-linux-gcc
+CFLAGS=--sysroot=$(BUILDROOT_HOME)/output/staging
+INCLUDES=
+LFLAGS=
+LIBS=-lcurl -uClibc -lc
+
+SRC=main.c
+OBJ=$(SRC:.c=.o)
+MAIN=hw
+
+RM=rm -rf
+
+.c.o:
+	$(CC) $(CFLAGS) $(INCLUDES) -c $< -o $@
+
+$(MAIN): $(OBJ)
+	$(CC) $(CFLAGS) $(INCLUDES) -o $(MAIN) $(OBJ) $(LFLAGS) $(LIBS)
+
+all: $(MAIN)
+
+clean:
+	$(RM) $(MAIN) *.o *~
