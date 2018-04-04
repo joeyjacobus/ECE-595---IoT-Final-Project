@@ -120,18 +120,10 @@ int main(uint32_t argc, char **argv){
 	msg = combinestrings(argc, argv, startidxmsg);
 
 
-	switch (send_request(URL, METHOD, msg )){
-		case INIT_ERR:
-			printf("curl Initialization error - aborting\n");
-			return INIT_ERR;	
-		case REQ_ERR:
-			printf("curl request error - aborting\n");
-			return REQ_ERR;
-		default:
-			return OK;
-	}	
-
+	uint8_t err = send_request(URL, METHOD, msg );
+		
 	free (msg);
+	return err;
 
 }
 
@@ -165,10 +157,12 @@ int send_request(const char *URL, int8_t METHOD, const char *msg){
 				break;
 			
 			case PUT:
-				printf("implement me\n");
+				curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, "PUT");
+    				curl_easy_setopt(curl, CURLOPT_POSTFIELDS,
+				    msg);	
 				break;
 			default:
-				printf("Invalid OP\n");
+				printf("Invalid Method\n");
 				return METHOD_ERR;
 		}
 		res = curl_easy_perform(curl);
