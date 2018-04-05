@@ -68,6 +68,10 @@ int main(uint32_t argc, char **argv){
 			
 			/* skip to the next argument - it must be the url */
 			i++;
+			if (i >= argc){
+				printf("No url argument specified.\n");
+				return CLI_ERR;
+			}
 			URL = argv[i];
 			if (validate_url(URL)){
 				printf("invalid url - aborting\n");
@@ -114,6 +118,11 @@ int main(uint32_t argc, char **argv){
 				break;
 			}
 		}
+	}
+	
+	if (METHOD == -1){
+		printf("No method specified - aborting\n");
+		return CLI_ERR;
 	}
 
 	/* combine final strings into one string */
