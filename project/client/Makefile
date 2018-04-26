@@ -6,7 +6,7 @@ LIBS=-lcurl -lpthread
 
 SRC=main.c
 OBJ=$(SRC:.c=.o)
-MAIN=hw
+MAIN=thermd
 
 RM=rm -rf
 

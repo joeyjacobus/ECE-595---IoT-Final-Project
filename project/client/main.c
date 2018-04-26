@@ -25,11 +25,19 @@
 #define PUT 2
 #define DEL 3
 
+#define TMPFILENAME "/tmp/temp"
+#define STATUSFILENAME "/tmp/status"
+
 /* Function prototypes */
 void show_help(void);
-uint8_t validate_url(const char *url);
+void read_configs(const char *);
+double readTmpFromFile(void);
+
 int send_request(const char *URL, int8_t METHOD, const char *msg);
-char *combinestrings(int argc, char **argv, uint32_t startidx);
+
+
+FILE *tmpFP;
+FILE *statusFP;
 
 int main(uint32_t argc, char **argv){
 	uint32_t i;
@@ -43,6 +51,11 @@ int main(uint32_t argc, char **argv){
 
 	/* msg will be a malloced string combining all of the final arguments */
 	char *msg = NULL;
+
+	/* The configuration filename */
+	char *configfilename = "thermd.conf";
+
+	double read_temp;
 
 	/* Parse command line arguments */
 	for (i = 1; i < argc; i++){
@@ -58,84 +71,107 @@ int main(uint32_t argc, char **argv){
 			/* Always exit the program if they include the help prompt */
 			return OK;
 		}
-
-		else if (!strcmp(arg, "--url") || !strcmp(arg, "-u")){
-			/* Make sure url isn't already set */
-			if (URL != NULL){
-				printf("URL set twice - aborting\n");
-				return CLI_ERR;
-			}
-			
-			/* skip to the next argument - it must be the url */
+		else if (!strcmp(arg, "--config") || !strcmp(arg, "-c")){
 			i++;
 			if (i >= argc){
-				printf("No url argument specified.\n");
+				printf("no config file argument specified\n");
 				return CLI_ERR;
-			}
-			URL = argv[i];
-			if (validate_url(URL)){
-				printf("invalid url - aborting\n");
-				return CLI_ERR;
-			}
+			}	
+			configfilename = argv[i];
+			read_configs(argv[i]);
 		}
 
-		else if (!strcmp(arg, "--post") || !strcmp(arg, "-o")){
-			/* Ensure method hasn't already been specified */
-			if (METHOD != -1){
-				printf("More than one method specfied - aborting\n");
-				return CLI_ERR;
-			}	
-			METHOD = POST;
-		}
-		else if (!strcmp(arg, "--get") || !strcmp(arg, "-g")){
-			/* Ensure method hasn't already been specified */
-			if (METHOD != -1){
-				printf("More than one method specfied - aborting\n");
-				return CLI_ERR;
-			}	
-			METHOD = GET;
-		}
-		else if (!strcmp(arg, "--put") || !strcmp(arg, "-p")){
-			/* Ensure method hasn't already been specified */
-			if (METHOD != -1){
-				printf("More than one method specfied - aborting\n");
-				return CLI_ERR;
-			}	
-			METHOD = PUT;
-		}
-		else if (!strcmp(arg, "--delete") || !strcmp(arg, "-d")){
-			/* Ensure method hasn't already been specified */
-			if (METHOD != -1){
-				printf("More than one method specfied - aborting\n");
-				return CLI_ERR;
-			}	
-			METHOD = DEL;
-		}
+		//else if (!strcmp(arg, "--url") || !strcmp(arg, "-u")){
+		//	/* Make sure url isn't already set */
+		//	if (URL != NULL){
+		//		printf("URL set twice - aborting\n");
+		//		return CLI_ERR;
+		//	}
+		//	
+		//	/* skip to the next argument - it must be the url */
+		//	i++;
+		//	if (i >= argc){
+		//		printf("No url argument specified.\n");
+		//		return CLI_ERR;
+		//	}
+		//	URL = argv[i];
+		//	if (validate_url(URL)){
+		//		printf("invalid url - aborting\n");
+		//		return CLI_ERR;
+		//	}
+		//}
+
+		//else if (!strcmp(arg, "--post") || !strcmp(arg, "-o")){
+		//	/* Ensure method hasn't already been specified */
+		//	if (METHOD != -1){
+		//		printf("More than one method specfied - aborting\n");
+		//		return CLI_ERR;
+		//	}	
+		//	METHOD = POST;
+		//}
+		//else if (!strcmp(arg, "--get") || !strcmp(arg, "-g")){
+		//	/* Ensure method hasn't already been specified */
+		//	if (METHOD != -1){
+		//		printf("More than one method specfied - aborting\n");
+		//		return CLI_ERR;
+		//	}	
+		//	METHOD = GET;
+		//}
+		//else if (!strcmp(arg, "--put") || !strcmp(arg, "-p")){
+		//	/* Ensure method hasn't already been specified */
+		//	if (METHOD != -1){
+		//		printf("More than one method specfied - aborting\n");
+		//		return CLI_ERR;
+		//	}	
+		//	METHOD = PUT;
+		//}
+		//else if (!strcmp(arg, "--delete") || !strcmp(arg, "-d")){
+		//	/* Ensure method hasn't already been specified */
+		//	if (METHOD != -1){
+		//		printf("More than one method specfied - aborting\n");
+		//		return CLI_ERR;
+		//	}	
+		//	METHOD = DEL;
+		//}
 		/* Must be the start of the final string argument */
-		else{
-			if (startidxmsg == -1){
-				startidxmsg = i;
-				break;
-			}
-		}
+		//else{
+		//	if (startidxmsg == -1){
+		//		startidxmsg = i;
+		//		break;
+		//	}
+		//}
 	}
+	printf("%s\n", configfilename);
+
+	while(1){
+		read_temp = readTmpFromFile();
+		printf("temperature is %lf\n", read_temp);
+		sleep(1);
+	}
+	statusFP = fopen(STATUSFILENAME, "w");
+	fclose(statusFP);
 	
-	if (METHOD == -1){
-		printf("No method specified - aborting\n");
-		return CLI_ERR;
-	}
+//	if (METHOD == -1){
+//		printf("No method specified - aborting\n");
+//		return CLI_ERR;
+//	}
 
 	/* combine final strings into one string */
-	msg = combinestrings(argc, argv, startidxmsg);
+	//msg = combinestrings(argc, argv, startidxmsg);
 
 
-	uint8_t err = send_request(URL, METHOD, msg );
+	//uint8_t err = send_request(URL, METHOD, msg );
 		
-	free (msg);
-	return err;
-
+	//free (msg);
+	return OK;
 }
 
+double readTmpFromFile(void){
+	double temp;	
+	tmpFP = fopen(TMPFILENAME, "r");
+	fscanf(tmpFP, "%lf", &temp);
+	fclose(tmpFP);
+}
 /**
  *  Sends the HTTP request 
  *  @params 
@@ -203,37 +239,9 @@ void show_help(void){
 }
 
 
-/**
- * Make sure a url is valid.
- * Doesn't actually do anything... yet
+/** 
+ * read the config file 
  */
-uint8_t validate_url(const char *url){
-	return OK;
-}
+void read_configs(const char *configfile){
 
-
-/*
- * Combines the arguments from argv between startidx and argc into a single 
- * malloced string 
- */
-char *combinestrings(int argc, char **argv, uint32_t startidx){
-	/* Assemble the message into one string*/
-	char *msg;
-	uint32_t msgsize = 0;
-	uint32_t stridx = 0;
-	uint32_t i;
-
-	for ( i = startidx; i < argc; i++){
-		/* +1 is for the space in between */
-		msgsize += strlen(argv[i]) + 1;
-	}
-	msg = (char *) malloc(msgsize);
-	for ( i = startidx; i < argc; i++){
-		memcpy(msg + stridx, argv[i], strlen(argv[i])); 
-		stridx += strlen(argv[i]) ;
-		msg[stridx] = ' ';
-		stridx++;
-	}
-
-	return msg;
 }
