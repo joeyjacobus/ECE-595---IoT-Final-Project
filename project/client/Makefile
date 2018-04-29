@@ -4,7 +4,7 @@ INCLUDES=
 LFLAGS=-L/usr/lib/x86_64-linux-gnu/
 LIBS=-lcurl -lpthread
 
-SRC=main.c
+SRC=main.c cJSON.c cJSON.h
 OBJ=$(SRC:.c=.o)
 MAIN=thermd
 
