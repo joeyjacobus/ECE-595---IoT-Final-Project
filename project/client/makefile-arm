@@ -8,7 +8,7 @@ LIBS=-lcurl -uClibc -lc
 
 SRC=main.c cJSON.c cJSON.h
 OBJ=$(SRC:.c=.o)
-MAIN=hw
+MAIN=thermd
 
 RM=rm -rf
 

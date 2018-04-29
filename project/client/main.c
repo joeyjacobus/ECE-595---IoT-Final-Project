@@ -75,7 +75,6 @@ static void _loop(void);
 char HTTP_ENDPOINT[BUFFER_SIZE];
 char LOGFILE[BUFFER_SIZE];
 
-FILE *logFP;
 
 config configs;
 
@@ -84,7 +83,7 @@ int main(uint32_t argc, char **argv){
 
 
 	/* The configuration filename */
-	char *configfilename = "thermd.conf";
+	char *configfilename = "/etc/thermd/thermd.conf";
 
 
 	/* Parse command line arguments */
@@ -117,7 +116,6 @@ int main(uint32_t argc, char **argv){
 
 	/* Open log files */
 	openlog(DAEMON_NAME, LOG_PID | LOG_NDELAY | LOG_NOWAIT, LOG_DAEMON);
-	logFP = fopen(LOGFILE, "w");
 
 	/* Writes to /var/log/syslog on x86 */
 	syslog(LOG_INFO, "started thermd!");
@@ -178,9 +176,13 @@ static void _loop(void){
 	/* Either holds "on" or "off" */
 	char heater_status[4];
 	double read_temp;
-
+	FILE *logFP;
 	while(1){
 		/* GET any new setpoints from the server */
+		logFP = fopen(LOGFILE, "a");
+		if (logFP == NULL){
+			syslog(LOG_INFO, "Couldn't open %s for writing\n", LOGFILE);
+		}
 		while (send_request(HTTP_ENDPOINT, GET, NULL) == REQ_ERR){
 			syslog(LOG_INFO, "Server not available, re-trying\n");
 			sleep(1);
@@ -188,10 +190,10 @@ static void _loop(void){
 		
 		/* read temperature and make adjustments */
 		read_temp = read_temp_from_file();
-		syslog(LOG_INFO, "temperature is %lf\n", read_temp);
+		fprintf(logFP, "temperature is %lf\n", read_temp);
 
 		double set_temp = determine_set_point();
-		syslog(LOG_INFO, "Set point is %lf\n", set_temp);
+		fprintf(logFP, "Set point is %lf\n", set_temp);
 
 		if (set_temp < read_temp){
 			strncpy(heater_status, "OFF", 3);
@@ -203,17 +205,20 @@ static void _loop(void){
 		}
 
 		write_status_to_file(heater_status);
-		
 
 		//printf("status is %s\n", heater_status);
 		/* Post the updates to the server */
 		update_server(read_temp, heater_status);
 
+		fclose(logFP);
 
 		sleep(1);
 	}
 
 }
+
+
+
 
 /**
  *  Posts the last read temperature and status to the server
@@ -253,6 +258,7 @@ void stringToTimeT(char *timestr, time_t *t){
 	tm.tm_hour = hh;
 	tm.tm_min = mm;
 	tm.tm_sec = ss;
+	syslog(LOG_INFO, "hh is %d, mm is %d, ss is %d\n", hh, mm, ss);
 
 	*t = mktime(&tm);
 
@@ -278,12 +284,11 @@ double determine_set_point(void){
 		}
 	}
 
-	/** Debug sorting
+	///** Debug sorting
 	for (i = 0; i < NUM_SETPOINTS; i ++){
-		printf("Time[%d] is %s and temp is %lf\n\n", i, ctime(&configs.times[i]), configs.temps[i]);
-		
+		syslog(LOG_INFO, "Time[%d] is %s and temp is %lf\n\n", i, ctime(&configs.times[i]), configs.temps[i]);
 	}
-	*/
+	//*/
 
 
 	/* now find the latest time that the current time is greater than by searching backwards */
@@ -520,6 +525,7 @@ double read_temp_from_file(void){
 	if (tmpFP == NULL){
 		//printf("File %s does not exist, start thermocouple service\n", TMPFILENAME);
 		syslog(LOG_INFO, "File %s does not exist, start thermocouple service\n", TMPFILENAME);
+		closelog();
 		exit(1);
 	}
 	fscanf(tmpFP, "%lf", &temp);
@@ -536,7 +542,6 @@ static void _signal_handler(const int signal){
 		case SIGTERM:
 			syslog(LOG_INFO, "received SIGTERM, exiting.");
 			closelog();
-			fclose(logFP);
 			exit(OK);
 			break;
 		default:
