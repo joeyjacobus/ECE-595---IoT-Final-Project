@@ -49,11 +49,17 @@
 #define DEFAULT_ENDPOINT "18.234.11.129:9000"
 #define DEFAULT_LOGFILE "/var/log/thermd.log"
 
+typedef struct{
+	uint8_t hh;
+	uint8_t mm;
+	uint8_t ss;
+}my_time_t;
+
 typedef struct {
-	time_t times[NUM_SETPOINTS];
-	time_t currenttime;
+	my_time_t times[NUM_SETPOINTS];
+	my_time_t currenttime;
 	double temps[NUM_SETPOINTS];
-}config;
+}config_t;
 
 
 /* Function prototypes */
@@ -67,6 +73,7 @@ void update_server(double read_temp, const char *status);
 void write_status_to_file(const char *status);
 int send_request(const char *URL, int8_t METHOD, const char *msg);
 bool string_starts_with(const char *string, const char *prefix);
+void string_to_time(char *timestr, my_time_t *t);
 
 static void _signal_handler(const int signal);
 static void _loop(void);
@@ -76,7 +83,7 @@ char HTTP_ENDPOINT[BUFFER_SIZE];
 char LOGFILE[BUFFER_SIZE];
 
 
-config configs;
+config_t configs;
 
 int main(uint32_t argc, char **argv){
 	uint32_t i;
@@ -120,6 +127,7 @@ int main(uint32_t argc, char **argv){
 	/* Writes to /var/log/syslog on x86 */
 	syslog(LOG_INFO, "started thermd!");
 	
+
 	/* We fork to prevent taking over init or syslog */
 	pid_t pid = fork();
 	
@@ -182,6 +190,7 @@ static void _loop(void){
 		logFP = fopen(LOGFILE, "a");
 		if (logFP == NULL){
 			syslog(LOG_INFO, "Couldn't open %s for writing\n", LOGFILE);
+			exit(1);
 		}
 		while (send_request(HTTP_ENDPOINT, GET, NULL) == REQ_ERR){
 			syslog(LOG_INFO, "Server not available, re-trying\n");
@@ -191,9 +200,12 @@ static void _loop(void){
 		/* read temperature and make adjustments */
 		read_temp = read_temp_from_file();
 		fprintf(logFP, "temperature is %lf\n", read_temp);
+		//printf("temperature is %lf\n", read_temp);
+	
 
 		double set_temp = determine_set_point();
 		fprintf(logFP, "Set point is %lf\n", set_temp);
+		//printf("Set point is %lf\n", set_temp);
 
 		if (set_temp < read_temp){
 			strncpy(heater_status, "OFF", 3);
@@ -251,28 +263,34 @@ void write_status_to_file(const char *status){
 /**
  *   Takes a time string of the format "HH:MM:SS" to a time_t struct 
  */
-void stringToTimeT(char *timestr, time_t *t){
+void string_to_time(char *timestr, my_time_t *t){
 	int hh, mm, ss;
 	sscanf(timestr, "%d:%d:%d", &hh, &mm, &ss);
-	struct tm tm = {0};
-	tm.tm_hour = hh;
-	tm.tm_min = mm;
-	tm.tm_sec = ss;
-	syslog(LOG_INFO, "hh is %d, mm is %d, ss is %d\n", hh, mm, ss);
-
-	*t = mktime(&tm);
-
+	t->hh = hh;
+	t->mm = mm;
+	t->ss = ss;
 }
+
+
+int32_t my_difftime( my_time_t *now, my_time_t *other){
+	uint32_t nowsecs= now->hh * 3600 + now->mm * 60 + now->ss;
+	uint32_t othersecs= other->hh * 3600 + other->mm * 60 + other->ss;
+	return nowsecs - othersecs;
+}
+
+/**
+ * Looks at the setpoints and current time to figure out which one to use
+ */
 double determine_set_point(void){
 	/* first sort the set points based on time of day */
 	int i, j;
-	time_t tmptime;
+	my_time_t tmptime;
 	double tmptemp;
 		
 	/* bubble sort is ok since small number of setpoints */
 	for (i = 0; i < NUM_SETPOINTS; i++){
 		for (j = i; j < NUM_SETPOINTS; j++){
-			if (difftime(configs.times[j], configs.times[i]) < 0){
+			if (my_difftime(&configs.times[j], &configs.times[i]) < 0){
 				tmptime = configs.times[j];	
 				configs.times[j] = configs.times[i];
 				configs.times[i] = tmptime;
@@ -284,17 +302,20 @@ double determine_set_point(void){
 		}
 	}
 
-	///** Debug sorting
-	for (i = 0; i < NUM_SETPOINTS; i ++){
-		syslog(LOG_INFO, "Time[%d] is %s and temp is %lf\n\n", i, ctime(&configs.times[i]), configs.temps[i]);
-	}
-	//*/
-
+	/**
+	for(i = 0; i < NUM_SETPOINTS; i++){
+		syslog(LOG_INFO, "time %d is %d:%d:%d\n", i, configs.times[i].hh, configs.times[i].mm, configs.times[i].ss); 
+		//printf("time %d is %d:%d:%d\n", i, configs.times[i].hh, configs.times[i].mm, configs.times[i].ss); 
+	}	
+	//printf("time right now is %d:%d:%d\n",  configs.currenttime.hh, configs.currenttime.mm, configs.currenttime.ss); 
+	syslog(LOG_INFO, "time right now is %d:%d:%d\n",  configs.currenttime.hh, configs.currenttime.mm, configs.currenttime.ss); 
+	*/
 
 	/* now find the latest time that the current time is greater than by searching backwards */
 	for (i = NUM_SETPOINTS - 1; i >= 0; i--){
 		/* if diff time is positive, currenttime is later */
-		double diff = difftime( configs.currenttime, configs.times[i]);
+
+		double diff = my_difftime( &configs.currenttime, &configs.times[i]);
 		if (diff > 0){
 			return configs.temps[i];
 		}
@@ -316,9 +337,9 @@ void parse_JSON(char *strJson, size_t nmemb){
 	char *time1str = cJSON_GetObjectItem(root, "time1")->valuestring;
 	char *time2str = cJSON_GetObjectItem(root, "time2")->valuestring;
 	char *time3str = cJSON_GetObjectItem(root, "time3")->valuestring;
-	stringToTimeT(time1str, &configs.times[0]);
-	stringToTimeT(time2str, &configs.times[1]);
-	stringToTimeT(time3str, &configs.times[2]);
+	string_to_time(time1str, &configs.times[0]);
+	string_to_time(time2str, &configs.times[1]);
+	string_to_time(time3str, &configs.times[2]);
 	//printf("Time1 is %s\n", ctime(&time1));
 	//printf("Time1 is %s\n", ctime(&time2));
 	//printf("Time1 is %s\n", ctime(&time3));
@@ -348,21 +369,16 @@ void parse_JSON(char *strJson, size_t nmemb){
  */
 void update_current_TOD(void){
 	struct tm * mytime;
+	time_t currenttime;
 
-	time ( &configs.currenttime );
-	mytime = localtime ( &configs.currenttime );
+	time ( &currenttime );
+	mytime = localtime ( &currenttime );
 
-	/* Set to Dec 31 1899 to match our other times */
-	mytime->tm_mday = 31;
-	mytime->tm_mon = 11;
-	mytime->tm_year = -1;
-	mytime->tm_wday = 0;
-	mytime->tm_yday = 365;
-	mytime->tm_isdst = 0;
+	/* Offset for Mountain time zone */
+	configs.currenttime.hh = mytime->tm_hour - 6;
+	configs.currenttime.mm = mytime->tm_min;
+	configs.currenttime.ss = mytime->tm_sec;
 
-	configs.currenttime = mktime(mytime);
-	//printf ( "Current local time and date: %s", asctime (timeinfo) );
-	//printf ( "Current local time and date: %s", ctime (&currenttime) );
 }
 
 /**
