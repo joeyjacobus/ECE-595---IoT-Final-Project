@@ -374,8 +374,13 @@ void update_current_TOD(void){
 	time ( &currenttime );
 	mytime = localtime ( &currenttime );
 
+	configs.currenttime.hh = mytime->tm_hour;
+	/* If we're already past midnight, need to adjust */
+	if (configs.currenttime.hh <= 6){
+		configs.currenttime.hh += 24;
+	}
 	/* Offset for Mountain time zone */
-	configs.currenttime.hh = mytime->tm_hour - 6;
+	configs.currenttime.hh -= 6;
 	configs.currenttime.mm = mytime->tm_min;
 	configs.currenttime.ss = mytime->tm_sec;
 
